@@ -6,18 +6,15 @@
 void unlim_buf_ovf()
 {
 	char p[4];
-	strcpy(p, "Hello World");
+	strcpy(p, "Hello World"); // Unlimited overflow
 }
 
 // *** T2 ***
 // Out of array bounds by one
 void off_by_one_ovf()
 {
-	char input[3];
-	input[0] = 'a'; input[1] = 'b'; input[2] = 'c'; // input = "abc"
-
-	char buf[2];
-	strcpy(buf, input);
+	char buf[3] = { 'a', 'b', 'c' };
+	buf[3] = 'd'; // Off by one overflow
 }
 
 // *** T3 ***
