@@ -1,4 +1,6 @@
 ﻿#include <cstdlib>
+#include <cstdio>
+#include <cstring>
 #include <iostream>
 
 // *** T1 ***
@@ -18,14 +20,28 @@ void off_by_one_ovf()
 }
 
 // *** T3 ***
-// Continuously allocate memory from the heap
-// without releasing it
+// Writing to a memory slot that was already released.
+// Reading dynamic memory over bounds => reading memory that might not belong to this program at all
+// Possibly reading memory area allocated for another process and reveal secrets from them?
 void heap_ovf()
 {
-	for (auto i = 0; i < 10'000'000; i++)
-	{
-		new char();
-	}
+	// Dynamically allocate two pointers
+	char* p;
+	p = (char*)malloc(sizeof(char) * 4);
+	char* q;
+	q = (char*)malloc(sizeof(char) * 4);
+
+	// Tell the OS to free the allocated memory from this process
+	free(p);
+	// Write to that memory area with a valid input, after it has been already released
+	strcpy(p, "abc");
+
+	// Read a dynamic memory over bounds, to see whats in the memory outside of the allocated memory area
+	char buf[32];
+	memcpy(buf, q, 32);
+
+	// Print the result
+	printf(q);
 }
 
 // *** T4 ***
@@ -57,6 +73,7 @@ int main()
 {
 	//unlim_buf_ovf();
 	//off_by_one_ovf();
+	heap_ovf();
 	//func_ptr_ovf();
 	//printf_vuln();
 }
