@@ -301,10 +301,10 @@ int main()
 {
 	try
 	{
-		//t2();
-		//t3();
-		//t4();
-		//t5();
+		t2();
+		t3();
+		t4();
+		t5();
 	}
 	// Catch any exceptions occurred during execution
 	catch (const std::exception &e)
@@ -313,5 +313,11 @@ int main()
 		std::cout << "Caught exception: " << e.what() << std::endl;
 	}
 
+	// Ensure <key> pressed before program exits
+	std::cout << "\nPress any key to exit." << std::endl;
+	std::cin.clear();
+	std::cin.ignore(std::numeric_limits<int>::max(), '\n');
+	std::cin.getline(new char(), 1);
+	
 	return 0;
 }
