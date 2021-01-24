@@ -10,9 +10,9 @@
 #include <modes.h>
 #include <threefish.h>
 #include <aes.h>
-#include <limits>
 #include <iostream>
 #include <fstream>
+#include <string>
 
 /// <summary>
 /// T2: Program that writes crypto safe random data into a file
@@ -56,53 +56,96 @@ void t2()
 	file.close();
 }
 
+bool check_decimal(const std::string* const str)
+{
+	auto p_cnt = 0;
+
+	// All must satisfy the condition:
+	// Has only 1 comma or dot, all other characters are digits
+	return std::all_of(
+		std::begin(*str), 
+		std::end(*str), 
+		[&p_cnt](const char& c) -> const bool
+		{
+			if (p_cnt > 1) return false;
+			if (c == '.')
+			{
+				if (++p_cnt > 1) return false;
+				return true;
+			}
+			if (std::isdigit(c)) return true;
+			return false;
+		}
+	);
+}
+
 /// <summary>
 /// T3 Take 2 decimal inputs, multiply them together and return the result.
 /// Check any invalid or out of bound inputs.
+/// Everything is stored in heap so stack overflowing is not possible
 /// </summary>
 void t3()
 {
-	double num1;
-	double num2;
-	double temp;
-
+	auto* str1 = new std::string;
+	auto* str2 = new std::string;
+	
 	std::cout << "Decimal 1: ";
-	std::cin >> num1;
-	if (!std::cin.good() || std::cin.bad() || std::cin.fail())
-	{
-		throw std::exception("Input for Decimal 1 was not a valid double.");
-	}
+	std::cin >> *str1;
 
 	std::cout << "\nDecimal 2: ";
-	std::cin >> num2;
-	if (!std::cin.good() || std::cin.bad() || std::cin.fail())
+	std::cin >> *str2;
+
+	if (!check_decimal(str1) || !check_decimal(str2))
 	{
-		throw std::exception("Input for Decimal 2 was not a valid double.");
+		delete str1;
+		delete str2;
+		throw std::exception("Could not convert inputs to decimal values.");
+	}
+	
+	double* num1;
+	double* num2;
+	
+	try
+	{
+		num1 = new double(std::stod(*str1));
+		num2 = new double(std::stod(*str2));
+	}
+	catch (...)
+	{
+		throw;
 	}
 
-	// try to convert result into long double (to maintain a highest possible precision
-	long double result;
+	delete str1;
+	delete str2;
+
+	// try to convert result into long double (to maintain a highest possible precision)
+	auto* result = new long double;
 
 	// If either of the values were 0, the resulting value will be zero.
-	if (num1 == 0.0 || num2 == 0.0)
+	if (*num1 == 0.0 || *num2 == 0.0)
 	{
-		result = 0;
+		*result = 0;
 	}
-	else if (num1 < DBL_MIN || num2 < DBL_MIN)
+	else if (*num1 < DBL_MIN || *num2 < DBL_MIN)
 	{
 		throw std::exception("Doubles were under minimum value.");
 	}
-	else if (num1 > DBL_MAX || num2 > DBL_MAX)
+	else if (*num1 > DBL_MAX || *num2 > DBL_MAX)
 	{
 		throw std::exception("Doubles were over maximum value.");
 	}
 	else
 	{
-		result = num1 * num2;
-		if (result < DBL_MIN || result > DBL_MAX) throw std::exception("Double limits exceeded.");
+		*result = *num1 * *num2;
+		if (*result < DBL_MIN || *result > DBL_MAX) throw std::exception("Double limits exceeded.");
 	}
 
-	std::cout << "\nResult: " << result << std::endl;
+	delete num1;
+	delete num2;
+
+	std::cout << "\n\nResult: " << *result << std::endl;
+
+	delete result;
 }
 
 void t4()
