@@ -13,6 +13,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <iomanip>
 
 /// <summary>
 /// T2: Program that writes crypto safe random data into a file
@@ -56,21 +57,30 @@ void t2()
 	file.close();
 }
 
-bool check_decimal(const std::string* const str)
+bool is_number(const std::string& str)
 {
+	if (str.empty()) return false;
+	if (str.size() == 1 && !std::isdigit(str[0])) return false;
+	
 	auto p_cnt = 0;
 
 	// All must satisfy the condition:
-	// Has only 1 comma or dot, all other characters are digits
+	// Has maximum of 1 dot if exists (decimal)
+	// minus sign at the beginning if exists (negative number)
+	// all other characters are digits
 	return std::all_of(
-		std::begin(*str), 
-		std::end(*str), 
-		[&p_cnt](const char& c) -> const bool
+		std::begin(str), 
+		std::end(str), 
+		[&str, &p_cnt](const char c) -> const bool
 		{
 			if (p_cnt > 1) return false;
 			if (c == '.')
 			{
-				if (++p_cnt > 1) return false;
+				return ++p_cnt > 1 ? false : true;
+			}
+			if (c == '-')
+			{
+				if (str[0] != '-') return false;
 				return true;
 			}
 			if (std::isdigit(c)) return true;
@@ -86,8 +96,8 @@ bool check_decimal(const std::string* const str)
 /// </summary>
 void t3()
 {
-	auto* str1 = new std::string;
-	auto* str2 = new std::string;
+	auto* const str1 = new std::string;
+	auto* const str2 = new std::string;
 	
 	std::cout << "Decimal 1: ";
 	std::cin >> *str1;
@@ -95,25 +105,15 @@ void t3()
 	std::cout << "\nDecimal 2: ";
 	std::cin >> *str2;
 
-	if (!check_decimal(str1) || !check_decimal(str2))
+	if (!is_number(*str1) || !is_number(*str2))
 	{
 		delete str1;
 		delete str2;
 		throw std::exception("Could not convert inputs to decimal values.");
 	}
-	
-	double* num1;
-	double* num2;
-	
-	try
-	{
-		num1 = new double(std::stod(*str1));
-		num2 = new double(std::stod(*str2));
-	}
-	catch (...)
-	{
-		throw;
-	}
+
+	const auto* const num1 = new double(std::stod(*str1));
+	const auto* const num2 = new double(std::stod(*str2));
 
 	delete str1;
 	delete str2;
@@ -137,27 +137,80 @@ void t3()
 	else
 	{
 		*result = *num1 * *num2;
+		delete num1; delete num2;
 		if (*result < DBL_MIN || *result > DBL_MAX) throw std::exception("Double limits exceeded.");
 	}
-
-	delete num1;
-	delete num2;
 
 	std::cout << "\n\nResult: " << *result << std::endl;
 
 	delete result;
 }
 
+/// <summary>
+/// T4 Write a program that prints inverse of a number that a user has given.
+/// Take care that the program works correctly with any input.
+/// </summary>
 void t4()
 {
+	const auto fractions = 10;
+
+	std::string input;
+	std::cout << "Enter a number (max digits: "<< fractions << ", max fractions: " << fractions  << "): ";
+	std::cin >> input;
+
+	if (!is_number(input))
+	{
+		throw std::exception("Input was not a valid number.");
+	}
+
+	// If decimal fractions, check fraction count overflow
+	// Validate against limits
+	std::string beforeDot;
+	std::string afterDot;
+
+	if (input.find('.') != std::string::npos)
+	{
+		beforeDot = input.substr(0, input.find('.'));
+		afterDot = input.substr(input.find('.') + 1, input.size());
+	}
+	else
+	{
+		beforeDot = input;
+	}
+	if (!afterDot.empty() && afterDot.size() > fractions)
+	{
+		throw std::exception("Too many decimal fractions in number input.");
+	}
+	if (beforeDot.size() > fractions)
+	{
+		throw std::exception("Too many digits in the number input.");
+	}
+
+	const auto num = std::stod(input);
+
+	std::ostringstream result;
+	result << std::setprecision(input.size() > 2 * fractions + 1 ? 2*fractions + 1 : input.size());
+
+	if (num == 0.0)
+	{
+		result << "Infinity";
+	}
+	else if (num < 0.0)
+	{
+		result << "	1\n-	-\n	" << -num;
+	}
+	else
+	{
+		result << "1\n-\n" << num;
+	}
+
+	std::cout << "\n\nResult:\n" << result.str() << std::endl;
 }
 
 void t5()
 {
 	// Read the data generated in T2 from the same file
 	const std::string path = "./random_data.txt";
-	// Define a list of allowed characters (letters, numbers, comma, hyphen)
-	const std::string allowed_chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,-";
 
 	// Open the file in read mode
 	std::ifstream file;
@@ -165,24 +218,29 @@ void t5()
 	if (!file.is_open()) throw std::exception("Could not open target file for write.");
 
 	std::string data;
-	char val;
+	char ch;
 
 	// Read the file one char at a time
 	// Ensure the char is allowed by the filter
 	// If not, discard the character
-	while(file.get(val))
+	while(file.get(ch))
 	{
-		if (allowed_chars.find(val) != std::string::npos)
-		{
-			data.push_back(val);
-		}
+		// Allowed characters: letters, numbers, comma, hyphen
+		if ( !std::isalnum(ch)
+			|| !std::isalpha(ch)
+			|| !std::isdigit(ch)
+			|| ch == ','
+			|| ch == '-'
+			) continue;
+
+		data.push_back(ch);
 	}
 
 	// Finally, close the file
 	file.close();
 
 	// Output the filtered file contents
-	std::cout << "Processed file data: " << data << std::endl;
+	std::cout << "Filtered file contents: " << data << std::endl;
 }
 
 int main()
@@ -190,7 +248,8 @@ int main()
 	try
 	{
 		//t2();
-		t3();
+		//t3();
+		t4();
 		//t5();
 	}
 	catch (const std::exception &e)
