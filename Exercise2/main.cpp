@@ -60,6 +60,8 @@ void t2()
 	file.write(text.c_str(), text.length());
 	// Close the file
 	file.close();
+
+	std::cout << "Random data written to file." << std::endl;
 }
 
 /// <summary>
@@ -303,9 +305,9 @@ int main()
 	try
 	{
 		t2();
-		t3();
-		t4();
-		t5();
+		//t3();
+		//t4();
+		//t5();
 	}
 	// Catch any exceptions occurred during execution
 	catch (const std::exception &e)
@@ -315,10 +317,10 @@ int main()
 	}
 
 	// Ensure <key> pressed before program exits
+	char c;
 	std::cout << "\nPress any key to exit." << std::endl;
-	std::cin.clear();
 	std::cin.ignore(std::numeric_limits<int>::max(), '\n');
-	std::cin.getline(new char(), 1);
+	std::cin.get(&c, 0);
 	
 	return 0;
 }
