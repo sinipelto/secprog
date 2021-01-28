@@ -276,17 +276,24 @@ void t5()
 	if (!file.is_open()) throw std::exception("Could not open target file for write.");
 
 	std::string data;
-	char ch;
+
+	const auto limit = data.max_size();
+	size_t cur = 0;
 
 	// Read the file one char at a time
 	// Ensure the char is allowed by the filter
 	// If not, discard the character and move to next
-	while(file.get(ch))
+	// Ensure the file size does not go over buffer limit
+	char ch;
+	while(cur < limit && file.get(ch))
 	{
 		// Allowed characters: letters, numbers, comma, hyphen
 		if (!std::isalnum(ch) && ch != ',' && ch != '-') continue;
 		data.push_back(ch);
+		cur++;
 	}
+
+	if (cur == limit) std::cout << "String size limit reached." << std::endl;
 
 	// Finally, close the file
 	file.close();
@@ -307,7 +314,7 @@ int main()
 		t2();
 		//t3();
 		//t4();
-		//t5();
+		t5();
 	}
 	// Catch any exceptions occurred during execution
 	catch (const std::exception &e)
