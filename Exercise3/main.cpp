@@ -60,13 +60,11 @@ user_entry* get_user_line(const std::string * const &uname, std::fstream& source
 		const auto s = line.find(DELIM, f+1);
 
 		// Form the user entry object: uname, hash, salt
-		auto* const entry = new user_entry{
+		return new user_entry{
 			*uname,
 		line.substr(f + 1, s - f - 1),
 		line.substr(s + 1, line.back())
 		};
-
-		return entry;
 	}
 
 	return nullptr;
@@ -86,10 +84,11 @@ void store_user(const user_entry* const entry, std::fstream& dest)
 /// Function for processing user input.
 /// Type 0 : Username input
 /// Type 1 : Password input
+/// Type 2 : Normal text input
 /// </summary>
 /// <param name="input">Pointer to string where to store the user input</param>
 /// <param name="prompt">What to prompt from the user</param>
-/// <param name="type">Type of the prompt (username, password, ...)</param>
+/// <param name="type">Type of the prompt (username, password, normal text ...)</param>
 void user_input(std::string* const input, const std::string& prompt, const int type)
 {
 	auto ok = false;
@@ -103,6 +102,12 @@ void user_input(std::string* const input, const std::string& prompt, const int t
 		if (input->empty())
 		{
 			std::cout << "Input was empty." << std::endl;
+			continue;
+		}
+
+		if (type == 1 && input->size() > 512)
+		{
+			std::cout << "Input too long." << std::endl;
 			continue;
 		}
 		
@@ -126,8 +131,6 @@ bool authenticate_user(user_entry* const entry, const std::string* passwd)
 
 	// Salt size: 16 bytes = 128 bits => big enough key space for ensuring unique salts
 	SecByteBlock salt(16);
-	auto x = salt.size();
-	auto y = salt.SizeInBytes();
 
 	// If salt empty, generate new
 	if (entry->salt.empty())
@@ -192,7 +195,7 @@ bool authenticate_user(user_entry* const entry, const std::string* passwd)
 /// </summary>
 void t2()
 {
-	const std::string user_file = "./users.txt";
+	const std::string user_file = "./userdata.txt";
 
 	// Variable for std input
 	// Keep in the heap for sake of size and privacy
@@ -298,6 +301,35 @@ void t2()
 /// </summary>
 void t3()
 {
+	auto* const input = new std::string();
+	user_input(input, "Encrypt or Decrypt (e/d)? ", 3);
+
+	if (*input == "e")
+	{
+		user_input(input, "File name to encrypt: ", 3);
+		std::ifstream file(*input, std::ios::in);
+
+		if (!file || !file.is_open())
+		{
+			std::cout << "Could not open file with provided filename." << std::endl;
+			return;
+		}
+
+		std::string content{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+
+		using namespace CryptoPP;
+
+		
+		
+	}
+	else if (*input == "d")
+	{
+		
+	}
+	else
+	{
+		std::cout << "Invalid input for action." << std::endl;
+	}
 }
 
 int main()
