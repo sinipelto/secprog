@@ -360,23 +360,6 @@ void t3()
 		FileSource f(filename.c_str(), true, new StreamTransformationFilter(enc, new FileSink((enc_fname).c_str(), true)));
 
 		std::cout << "Encrypted content saved into: " << enc_fname << std::endl;
-
-		//std::string cipher_str;
-		//StringSource ss(cipher, cipher.size(), true, new HexEncoder(new StringSink(cipher_str)));
-
-		//std::cout << "Encrypted file content: " << cipher_str << std::endl;
-
-		//auto encfilename = filename + ".enc";
-		//std::ofstream out(encfilename, std::ios::out | std::ios::trunc);
-
-		//if (!out || !out.is_open())
-		//{
-		//	delete input;
-		//	throw std::exception("Could not save encrypted file.");
-		//}
-
-		//out.write(cipher_str.c_str(), cipher_str.size());
-		//out.close();
 	}
 	else if (*input == "d")
 	{
@@ -434,23 +417,6 @@ void t3()
 		FileSource f(filename.c_str(), true, new StreamTransformationFilter(dec, new FileSink((dec_fname).c_str(), false), BlockPaddingSchemeDef::NO_PADDING));
 
 		std::cout << "Decrypted content saved into: " << dec_fname << std::endl;
-
-		//std::string clear_str;
-		//StringSource ss(clear, clear.size(), true, new HexEncoder(new StringSink(clear_str)));
-
-		//std::cout << "Decrypted file content: " << clear_str << std::endl;
-		
-		//auto dec_filename = filename + ".dec";
-		//std::ofstream out(dec_filename, std::ios::out | std::ios::trunc);
-
-		//if (!out || !out.is_open())
-		//{
-		//	delete input;
-		//	throw std::exception("Could not save decrypted file.");
-		//}
-
-		//out.write(clear_str.c_str(), clear_str.size());
-		//out.close();
 	}
 	else
 	{
