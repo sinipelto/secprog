@@ -1,1 +1,4 @@
-userdata.txt
+file
+*.txt
+*.enc
+*.dec
