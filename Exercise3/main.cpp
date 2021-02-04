@@ -44,6 +44,49 @@ struct user_entry
 
 const char DELIM = ';';
 
+std::string read_file_contents(const std::string& fname, const bool binary)
+{
+	std::ifstream file;
+
+	if (binary)
+	{
+		file.open(fname, std::ios::in | std::ios::binary);
+	}
+	else
+	{
+		file.open(fname, std::ios::in);
+
+	}
+
+	if (!file || !file.is_open())
+	{
+		throw std::exception("Could not open file with provided filename.");
+	}
+
+	// Read encryption source file contents
+	std::string content{ std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>() };
+	file.close();
+
+	return content;
+}
+
+void store_file_contents(const std::string& fname, const bool binary, const std::string& content)
+{
+	std::ofstream file;
+
+	if (binary)
+	{
+		file.open(fname, std::ios::out | std::ios::binary);
+	}
+	else
+	{
+		file.open(fname, std::ios::out);
+	}
+	
+	file.write(content.c_str(), content.size());
+	file.close();
+}
+
 user_entry* get_user_line(const std::string * const &uname, std::fstream& source)
 {
 	if (!source || !source.is_open()) 
@@ -72,14 +115,33 @@ user_entry* get_user_line(const std::string * const &uname, std::fstream& source
 	return nullptr;
 }
 
-void store_user(const user_entry* const entry, std::fstream& dest)
+user_entry* get_user_from_userdb(const std::string& db, const std::string& uname)
 {
-	if (!dest || !dest.is_open()) 
-		throw std::exception("Target file stream was not open.");
+	std::fstream ufile(db, std::ios::in);
+	auto* const entry = get_user_line(&uname, ufile);
+	ufile.close();
+
+	if (entry == nullptr)
+	{
+		std::cout << "Username does not exist" << std::endl;
+		return nullptr;
+	}
+
+	return entry;
+}
+
+void store_user(const user_entry* const entry, const std::string& dest)
+{
+	std::ofstream file(dest, std::ios::out | std::ios::app);
+	
+	if (!file || !file.is_open())
+	{
+		throw std::exception("Could not open file to write new user.");
+	}
 
 	const auto line = "\n" + entry->uname + DELIM + entry->hash + DELIM + entry->salt;
 	
-	dest.write(line.c_str(), line.size());
+	file.write(line.c_str(), line.size());
 }
 
 /// <summary>
@@ -123,6 +185,33 @@ void user_input(std::string* const input, const std::string& prompt, const int t
 	}
 }
 
+std::string gen_salt(const size_t len, CryptoPP::SecByteBlock* const &out, const bool use_out)
+{
+	using namespace CryptoPP;
+	
+	if (use_out)
+	{
+		// Generate new salt for out param
+		OS_GenerateRandomBlock(true, *out, out->size());
+
+		// Return the salt as Hex
+		std::string salt_hex;
+		ArraySource as(*out, out->size(), true, new HexEncoder(new StringSink(salt_hex)));
+		return salt_hex;
+	}
+
+	// Create sec byte block for salt
+	SecByteBlock salt(len);
+
+	// Use OS PSRNG to generate new random salt
+	OS_GenerateRandomBlock(true, salt, salt.size());
+	
+	// Return the salt as Hex
+	std::string salt_hex;
+	ArraySource as(salt, salt.size(), true, new HexEncoder(new StringSink(salt_hex)));
+	return salt_hex;
+}
+
 bool password_hash(user_entry* const entry, const std::string* passwd)
 {
 	// Dive into cryptopp namespace
@@ -131,28 +220,25 @@ bool password_hash(user_entry* const entry, const std::string* passwd)
 	// Copy the password string into a secure byte block
 	SecByteBlock passwd_block(reinterpret_cast<const byte*>(passwd->data()), passwd->size());
 
-	// Salt size: 8 bytes = 64 bits => big enough key space for ensuring unique salts, but function doesnt overflows
-	SecByteBlock salt(8);
+	// Salt size: 32 bytes = 256 bits => big enough keyspace for ensuring unique salts
+	SecByteBlock salt(SHA3_512::DIGESTSIZE / 2);
 
 	// If salt empty, generate new
 	if (entry->salt.empty())
 	{
-		// use PSRNG to generate new random salt
-		OS_GenerateRandomBlock(true, salt, salt.size());
-
-		// store salt to user entry
-		StringSource ss(salt, salt.size(), true, new HexEncoder(new StringSink(entry->salt)));
+		entry->salt = gen_salt(salt.size(), &salt, true);
 	}
-	// If salt exists, read salt
+	// If salt exists, read existing salt value
 	else
 	{
 		// Retrieve existing salt from entry
 		StringSource ss(entry->salt, true, new HexDecoder(new ArraySink(salt, salt.size())));
 	}
-
-	// Instantiate secure password hasher (PBKDF2-HMAC)
+	
+	// Instantiate secure password hasher (PBKDF2-HMAC using SHA3_512 for hashing)
 	const PKCS5_PBKDF2_HMAC<SHA3_512> pkcs5_pbkdf2_hmac;
 
+	// Store hash into byteblock
 	SecByteBlock hash(SHA3_512::DIGESTSIZE);
 
 	// Derive key from the password input and salt
@@ -164,11 +250,11 @@ bool password_hash(user_entry* const entry, const std::string* passwd)
 		passwd_block.size(), // password input size
 				salt, // salt
 		salt.size(), //salt size
-		5'000); // key function iterations
+		5'000); // key function iterations (1 000 < i < 10 000)
 
-	// Collect the derived key as hex
+	// Collect the derived key as hex digest (digest size == 64 by == 512 b)
 	std::string hash_hex;
-	StringSource ss(hash, hash.size(), true, new HexEncoder(new StringSink(hash_hex)));
+	ArraySource ss(hash, SHA3_512::DIGESTSIZE, true, new HexEncoder(new StringSink(hash_hex)));
 
 	// Check if hash matched to stored one TODO
 	if (hash_hex == entry->hash)
@@ -184,6 +270,125 @@ bool password_hash(user_entry* const entry, const std::string* passwd)
 	}
 
 	return false;
+}
+
+user_entry* derive_new_hash(user_entry* const entry, const std::string& passwd)
+{
+	// Remove user personal password hash to use different password
+	entry->hash = "";
+
+	// Get derived key from the password input (using PBKDF2)
+	password_hash(entry, &passwd);
+
+	// Return updated entry
+	return entry;
+}
+
+user_entry* create_new_user(const std::string& uname)
+{
+	// Allocate new user entry with current username
+	return new user_entry{ uname };
+}
+
+void debug_print(const CryptoPP::SecByteBlock& key, const CryptoPP::SecByteBlock& iv, const bool mode)
+{
+	using namespace CryptoPP;
+
+	std::cout << std::endl;
+
+	if (mode)
+	{
+		std::cout << std::endl << "ENC KEY: ";
+		ArraySource akey(key, key.size(), true, new HexEncoder(new FileSink(std::cout)));
+
+		std::cout << std::endl << "ENC IV: ";
+		ArraySource aiv(iv, iv.size(), true, new HexEncoder(new FileSink(std::cout)));
+	}
+	else
+	{
+		std::cout << std::endl << "DEC KEY: ";
+		ArraySource akey(key, key.size(), true, new HexEncoder(new FileSink(std::cout)));
+
+		std::cout << std::endl << "DEC IV: ";
+		ArraySource aiv(iv, iv.size(), true, new HexEncoder(new FileSink(std::cout)));
+	}
+
+	std::cout << std::endl;
+}
+
+std::string aes_cbc_encrypt(const CryptoPP::SecByteBlock& key, const CryptoPP::SecByteBlock& iv, const std::string& content)
+{
+	using namespace CryptoPP;
+
+	// Create AES CBC decryptor object with provided key and IV
+	CBC_Mode<AES>::Encryption enc(key, key.size(), iv);
+
+	// Encrypted output as c++ string
+	std::string output;
+
+	// Encrypt the provided content
+	StringSource s(content, true,
+		new StreamTransformationFilter(enc,
+			new StringSink(output)
+		)
+	);
+
+	std::cout << "Plain content: " << content << std::endl;
+
+	// Store IV to file as cleartext into the file end
+	ArraySource ivs(iv, iv.size(),
+		true,
+		new StringSink(output)
+	);
+
+	return output;
+}
+
+std::string aes_cbc_decrypt(const CryptoPP::SecByteBlock& key, const CryptoPP::SecByteBlock& iv, std::string& content)
+{
+	using namespace CryptoPP;
+	
+	// Create AES decryptor object with key and IV
+	CBC_Mode<AES>::Decryption dec(key, key.size(), iv);
+
+	// Remove IV from file contents to decrypt
+	content.erase(content.size() - AES::BLOCKSIZE, AES::BLOCKSIZE);
+
+	std::string output;
+	
+	StringSource s(content, true,
+		new StreamTransformationFilter(dec,
+			new StringSink(output)
+		)
+	);
+
+	std::cout << "Decrypted content: " << output << std::endl;
+
+	return output;
+}
+
+CryptoPP::SecByteBlock create_aes_key(const std::string& data, const size_t len)
+{
+	using namespace CryptoPP;
+
+	// Derived key from user input password, cut to correct length
+	return SecByteBlock(reinterpret_cast<const byte*>(data.data()), len); // 16 bytes = 128 bits
+}
+
+CryptoPP::SecByteBlock create_aes_iv(const void* data, const size_t len)
+{
+	using namespace CryptoPP;
+
+	if (data == nullptr)
+	{
+		SecByteBlock iv(len);
+		OS_GenerateRandomBlock(true, iv, iv.size());
+		return iv;
+	}
+	else
+	{
+		return SecByteBlock(static_cast<const byte*>(data), len);
+	}
 }
 
 /// <summary>
@@ -206,7 +411,7 @@ void t2()
 	while (true)
 	{
 		std::cout << std::endl << "*********************************" << std::endl;
-		
+
 		// Collect username from stdin
 		user_input(input, "Enter username: ", 0);
 
@@ -244,18 +449,19 @@ void t2()
 		if (udata == nullptr)
 		{
 			user_exists = false;
-			// Allocate new user entry with current username
-			udata = new user_entry {*input};
-			
+
 			std::cout << "User '" + *input + "' does not exist in file." << std::endl;
 
-			user_input(input, "Enter NEW password for user '" + *input + "'(max 512 characters): ",1);
+			// Allocate new user entry with current username
+			udata = create_new_user(*input);
+
+			// Prompt for new password for user
+			user_input(input, "Enter NEW password for user '" + *input + "'(max 512 characters): ", 1);
 		}
 		else
 		{
 			// USER FOUND
 			user_exists = true;
-
 			user_input(input, "Enter password for user '" + *input + "': ", 1);
 		}
 
@@ -276,17 +482,15 @@ void t2()
 			continue;
 		}
 
-		// Store user data into the user database
-		file_handle.open(user_file, std::ios::out | std::ios::app);
-		if (!file_handle || !file_handle.is_open())
+		try
+		{
+			store_user(udata, user_file);
+		}
+		catch (...)
 		{
 			delete udata;
-			throw std::exception("Could not open user file for write");
+			throw;
 		}
-		store_user(udata, file_handle);
-		file_handle.close();
-
-		delete udata;
 
 		std::cout << "New username and password stored in file." << std::endl;
 	}
@@ -303,166 +507,127 @@ void t2()
 /// </summary>
 void t3()
 {
+	const std::string userdb = "./userdata.txt";
 	auto* const input = new std::string();
-	user_input(input, "Encrypt or Decrypt (e/d)? ", 3);
-	
+
+	user_input(input, "Encrypt or Decrypt (e/d)? ", 3); // TODO HACK
+	//*input = "e"; // TODO HACK
+
+	bool do_encrypt;
+
+	// Main control flow
 	if (*input == "e")
 	{
-		user_input(input, "File name to encrypt: ", 3);
-		auto filename(*input);
-
-		std::fstream file(filename, std::ios::in);
-
-		if (!file || !file.is_open())
-		{
-			std::cout << "Could not open file with provided filename." << std::endl;
-			delete input;
-			return;
-		}
-
-		std::string content{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
-		file.close();
-
-		user_input(input, "Enter username: ", 0);
-
-		std::fstream ufile("./userdata.txt", std::ios::in);
-		auto* const entry = get_user_line(input, ufile);
-		ufile.close();
-
-		if (entry == nullptr)
-		{
-			std::cout << "Username does not exist" << std::endl;
-			std::cout << "Please enter an existing username." << std::endl;
-			delete input;
-			return;
-		}
-
-		// Reset user hash to use the file password hash
-		entry->hash = "";
-	
-		user_input(input, "Enter file encryption password: ", 1);
-		
-		// Get derived key from the password input (using PBKDF2)
-		password_hash(entry, input);
-		
-		auto enc_fname = filename + ".enc";
-
-		using namespace CryptoPP;
-		
-		// Derived key from user input password, cut to correct length
-		SecByteBlock key(reinterpret_cast<const byte*>(entry->hash.data()), AES::DEFAULT_KEYLENGTH); // 16 bytes = 128 bits
-
-		// Generate random IV
-		SecByteBlock iv(AES::BLOCKSIZE); // 16 = 128 bits
-		OS_GenerateRandomBlock(true, iv, iv.size());
-		
-		CBC_Mode<AES>::Encryption enc(key, key.size(), iv);
-
-		// Encrypted output as c++ string
-		std::string output;
-
-		StringSource s(content, true,
-			new StreamTransformationFilter(enc,
-				new StringSink(output)
-			)
-		);
-
-		auto* filter = new StreamTransformationFilter(enc);
-		filter->Put(reinterpret_cast<const byte*>(content.data()), content.size());
-		filter->MessageEnd();
-
-		output.resize(filter->MaxRetrievable());
-		filter->Get((byte*)output.data(), output.size());
-
-		// Treat encrypted string as binary
-		std::ofstream y(enc_fname, std::ios::out | std::ios::binary);
-		y.write(output.c_str(), output.size());
-		y.close();
-
-		std::cout << "Encrypted content saved into: " << enc_fname << std::endl;
+		do_encrypt = true;
 	}
 	else if (*input == "d")
 	{
-		user_input(input, "File name to decrypt: ", 3);
-		const auto filename(*input);
-
-		// Treat encrypted file as binary input
-		std::fstream file(filename, std::ios::in | std::ios::binary);
-
-		if (!file || !file.is_open())
-		{
-			std::cout << "Could not open file with provided filename." << std::endl;
-			delete input;
-			return;
-		}
-
-		std::string content{ std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>() };
-		file.close();
-
-		user_input(input, "Enter username: ", 0);
-
-		std::fstream ufile("./userdata.txt", std::ios::in);
-		auto* const entry = get_user_line(input, ufile);
-		ufile.close();
-
-		if (entry == nullptr)
-		{
-			std::cout << "Username does not exist" << std::endl;
-			std::cout << "Please enter an existing username in user file." << std::endl;
-			delete input;
-			return;
-		}
-
-		// Reset user hash to use the file password hash
-		entry->hash = "";
-
-		user_input(input, "Enter file decryption password: ", 1);
-
-		// Get derived key from the password input
-		password_hash(entry, input);
-
-		auto dec_fname = filename + ".dec";
-
-		using namespace CryptoPP;
-
-		// Derived key from user input password, cut to correct AES key length
-		SecByteBlock key(reinterpret_cast<const byte*>(entry->hash.data()), AES::DEFAULT_KEYLENGTH); // 16
-
-		// Generate random IV
-		SecByteBlock iv(AES::BLOCKSIZE); // 16 = 128 bits
-		for (auto x = 0; x < AES::BLOCKSIZE; x++)
-		{
-			iv[x] = content[x];
-		}
-
-		// Create decryptor object with key and IV
-		CBC_Mode<AES>::Decryption dec(key, key.size(), iv);
-
-		std::string output;
-
-		StringSource s(content, true,
-			new StreamTransformationFilter(dec,
-				new StringSink(output)
-			)
-		);
-		
-		auto* filter = new StreamTransformationFilter(dec);
-		filter->Put((const byte*)content.data(), content.size());
-		filter->MessageEnd();
-
-		output.resize(filter->MaxRetrievable());
-		filter->Get((byte*)output.data(), output.size());
-
-		std::ofstream y(dec_fname, std::ios::out);
-		y.write(content.c_str(), content.size());
-		y.close();
-
-		std::cout << "Decrypted content saved into: " << dec_fname << std::endl;
+		do_encrypt = false;
 	}
 	else
 	{
 		std::cout << "Input not recogrnized as an action." << std::endl;
+		delete input;
+		return;
 	}
+
+	// BEGIN
+	
+	if (do_encrypt)
+	{
+		user_input(input, "File name to encrypt: ", 3);
+	}
+	else
+	{
+		user_input(input, "File name to decrypt: ", 3);
+	}
+
+	const auto filename(*input);
+
+	std::string content;
+	
+	if (do_encrypt)
+	{
+		// Read input as normal text
+		content = read_file_contents(filename, false);
+	}
+	else
+	{
+		// Treat encrypted file as binary input
+		content = read_file_contents(filename, true);
+	}
+
+	user_input(input, "Enter username: ", 0);
+	auto* entry = get_user_from_userdb(userdb, *input);
+
+	// User was not found
+	if (entry == nullptr)
+	{
+		// Create new user and store it
+		std::cout << "Creating new user '" << *input << "'" << std::endl;
+		entry = create_new_user(*input);
+		entry->salt = gen_salt(32, nullptr, false);
+		store_user(entry, userdb);
+	}
+
+	if (do_encrypt)
+	{
+		user_input(input, "Enter file encryption password: ", 1);	
+	}
+	else
+	{
+		user_input(input, "Enter file decryption password: ", 1);
+	}
+	
+	derive_new_hash(entry, *input);
+	//derive_new_hash(entry, "salasana123");
+
+	if (do_encrypt)
+	{
+		user_input(input, "Enter file name for encrypted output: ", 2);
+	}
+	else
+	{
+		user_input(input, "Enter file name for decrypted output: ", 2);
+	}
+
+	const auto fname = *input;
+
+	// Derived key from user input password, cut to correct AES key length
+	const auto key = create_aes_key(entry->hash, CryptoPP::AES::DEFAULT_KEYLENGTH); // 16 bytes = 128 bits
+
+	std::string output;
+	
+	if (do_encrypt)
+	{
+		// Generate random IV
+		const auto iv = create_aes_iv(nullptr, CryptoPP::AES::BLOCKSIZE); // 16 bytes = 128 bits
+
+		// Encrypt the content using AES-CBC
+		output = aes_cbc_encrypt(key, iv, content);
+	}
+	else
+	{
+		// Use the IV from the last 16 bytes of the encrypted file
+		const auto iv = create_aes_iv(reinterpret_cast<const CryptoPP::byte*>(&*(content.end() - CryptoPP::AES::BLOCKSIZE)), CryptoPP::AES::BLOCKSIZE); // 16 = 128 bits
+
+		// Decrypt the content using AES-CBC
+		output = aes_cbc_decrypt(key, iv, content);
+	}
+
+	if (do_encrypt)
+	{
+		// Treat encrypted string as binary
+		store_file_contents(fname, true, output);
+		std::cout << "Encrypted content saved into: " << fname << std::endl;
+	}
+	else
+	{
+		store_file_contents(fname, false, output);
+		std::cout << "Decrypted content saved into: " << fname << std::endl;
+	}
+
+	delete input;
 }
 
 int main()
@@ -470,10 +635,10 @@ int main()
 	try
 	{
 		//t2();
-		//t3();
+		t3();
 	}
 	catch (const std::exception& e)
 	{
-		std::cout << "Exception: " << e.what() << std::endl;
+		std::cout << std::endl << std::endl << "EXCEPTION: " << e.what() << std::endl;
 	}
 }
