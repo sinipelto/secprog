@@ -28,10 +28,11 @@
 #include <hex.h>
 #include <pwdbased.h>
 #include <filters.h>
-#include <aes.h>
-#include <gcm.h>
-#include <files.h>
 #include <threefish.h>
+#include <aes.h>
+#include <files.h>
+#include <gcm.h>
+#include <ccm.h>
 #include <simple.h>
 
 struct user_entry
@@ -304,7 +305,7 @@ void t3()
 {
 	auto* const input = new std::string();
 	user_input(input, "Encrypt or Decrypt (e/d)? ", 3);
-
+	
 	if (*input == "e")
 	{
 		user_input(input, "File name to encrypt: ", 3);
@@ -320,6 +321,7 @@ void t3()
 		}
 
 		std::string content{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+		file.close();
 
 		user_input(input, "Enter username: ", 0);
 
@@ -334,39 +336,58 @@ void t3()
 			delete input;
 			return;
 		}
-		
+
+		// Reset user hash to use the file password hash
+		entry->hash = "";
+	
 		user_input(input, "Enter file encryption password: ", 1);
+		
+		// Get derived key from the password input (using PBKDF2)
+		password_hash(entry, input);
+		
+		auto enc_fname = filename + ".enc";
 
 		using namespace CryptoPP;
-
-		// Get derived key from the password input
-		password_hash(entry, input);
-
-		SecByteBlock content_bytes(reinterpret_cast<const byte*>(content.data()), content.size());
-		SecByteBlock cipher(16);
 		
 		// Derived key from user input password, cut to correct length
-		SecByteBlock key(reinterpret_cast<const byte*>(entry->hash.data()), 16);
-
-		CBC_Mode<AES>::Encryption enc;
+		SecByteBlock key(reinterpret_cast<const byte*>(entry->hash.data()), AES::DEFAULT_KEYLENGTH); // 16 bytes = 128 bits
 
 		// Generate random IV
-		SecByteBlock iv(16);
+		SecByteBlock iv(AES::BLOCKSIZE); // 16 = 128 bits
 		OS_GenerateRandomBlock(true, iv, iv.size());
 		
-		enc.SetKeyWithIV(key, key.size(), iv, iv.size());
+		CBC_Mode<AES>::Encryption enc(key, key.size(), iv);
 
-		auto enc_fname = filename + ".enc";
-		FileSource f(filename.c_str(), true, new StreamTransformationFilter(enc, new FileSink((enc_fname).c_str(), true)));
+		// Encrypted output as c++ string
+		std::string output;
+
+		StringSource s(content, true,
+			new StreamTransformationFilter(enc,
+				new StringSink(output)
+			)
+		);
+
+		auto* filter = new StreamTransformationFilter(enc);
+		filter->Put(reinterpret_cast<const byte*>(content.data()), content.size());
+		filter->MessageEnd();
+
+		output.resize(filter->MaxRetrievable());
+		filter->Get((byte*)output.data(), output.size());
+
+		// Treat encrypted string as binary
+		std::ofstream y(enc_fname, std::ios::out | std::ios::binary);
+		y.write(output.c_str(), output.size());
+		y.close();
 
 		std::cout << "Encrypted content saved into: " << enc_fname << std::endl;
 	}
 	else if (*input == "d")
 	{
 		user_input(input, "File name to decrypt: ", 3);
-		auto filename(*input);
+		const auto filename(*input);
 
-		std::fstream file(filename, std::ios::in);
+		// Treat encrypted file as binary input
+		std::fstream file(filename, std::ios::in | std::ios::binary);
 
 		if (!file || !file.is_open())
 		{
@@ -392,29 +413,49 @@ void t3()
 			return;
 		}
 
+		// Reset user hash to use the file password hash
+		entry->hash = "";
+
 		user_input(input, "Enter file decryption password: ", 1);
 
 		// Get derived key from the password input
 		password_hash(entry, input);
 
+		auto dec_fname = filename + ".dec";
+
 		using namespace CryptoPP;
 
-		SecByteBlock content_bytes(reinterpret_cast<const byte*>(content.data()), content.size());
-		SecByteBlock clear(16);
-
-		// Derived key from user input password, cut to correct length
-		SecByteBlock key(reinterpret_cast<const byte*>(entry->hash.data()), 16);
-
-		CBC_Mode<AES>::Decryption dec;
+		// Derived key from user input password, cut to correct AES key length
+		SecByteBlock key(reinterpret_cast<const byte*>(entry->hash.data()), AES::DEFAULT_KEYLENGTH); // 16
 
 		// Generate random IV
-		SecByteBlock iv(16);
-		OS_GenerateRandomBlock(true, iv, iv.size());
+		SecByteBlock iv(AES::BLOCKSIZE); // 16 = 128 bits
+		for (auto x = 0; x < AES::BLOCKSIZE; x++)
+		{
+			iv[x] = content[x];
+		}
 
-		dec.SetKeyWithIV(key, key.size(), iv, iv.size());
+		// Create decryptor object with key and IV
+		CBC_Mode<AES>::Decryption dec(key, key.size(), iv);
 
-		auto dec_fname = filename + ".dec";
-		FileSource f(filename.c_str(), true, new StreamTransformationFilter(dec, new FileSink((dec_fname).c_str(), false), BlockPaddingSchemeDef::NO_PADDING));
+		std::string output;
+
+		StringSource s(content, true,
+			new StreamTransformationFilter(dec,
+				new StringSink(output)
+			)
+		);
+		
+		auto* filter = new StreamTransformationFilter(dec);
+		filter->Put((const byte*)content.data(), content.size());
+		filter->MessageEnd();
+
+		output.resize(filter->MaxRetrievable());
+		filter->Get((byte*)output.data(), output.size());
+
+		std::ofstream y(dec_fname, std::ios::out);
+		y.write(content.c_str(), content.size());
+		y.close();
 
 		std::cout << "Decrypted content saved into: " << dec_fname << std::endl;
 	}
