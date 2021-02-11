@@ -1,0 +1,11 @@
+STOP=0
+RESTART=0
+TIMEOUT=5
+
+SCRIPT='.*server.sh'
+PROC='.*gruyere.py'
+
+TGTPATH_1='/server_fixed'
+TGTPATH_2='/server_orig'
+
+COMMAND="(exec python ./gruyere.py &> gruyere.log) &"
