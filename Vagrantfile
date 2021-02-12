@@ -46,8 +46,8 @@ Vagrant.configure("2") do |config|
   # the path on the host to the actual folder. The second argument is
   # the path on the guest to mount the folder. And the optional third
   # argument is a set of non-required options.
-  config.vm.synced_folder "./server-fixed", "/server_fixed", create: true
-  config.vm.synced_folder "./server-orig", "/server_orig", create: true
+  config.vm.synced_folder "./google-gruyere-fixed", "/server_fixed", create: true
+  config.vm.synced_folder "./google-gruyere-orig", "/server_orig", create: true
 
   # Provider-specific configuration so you can fine-tune various
   # backing providers for Vagrant. These expose provider-specific options.
@@ -70,8 +70,8 @@ Vagrant.configure("2") do |config|
   config.vm.provision "shell", inline: <<-SHELL
     apt-get update
     apt-get install -y unzip python2.7 python-pip
-#	rm -rf /server/*
-#	unzip /vagrant/prov/gruyere-code.zip -d /server/
+	rm -rf /server_orig/*
+	unzip /vagrant/prov/gruyere-code.zip -d /server_orig/
 	chown -R vagrant:vagrant /server_fixed
 	chown -R vagrant:vagrant /server_orig
   SHELL
