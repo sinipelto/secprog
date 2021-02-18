@@ -1,6 +1,6 @@
-STOP=0
 RESTART=0
-TIMEOUT=5
+TIMEOUT=3
+STOP=0
 
 SCRIPT='.*server.sh'
 PROC='.*gruyere.py'

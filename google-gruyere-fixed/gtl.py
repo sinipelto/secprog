@@ -15,6 +15,7 @@ code may be used for educational or instructional purposes provided this
 notice is kept intact. By using Gruyere you agree to the Terms of Service
 https://www.google.com/intl/en/policies/terms/
 """
+from gruyere import SPECIAL_COOKIE
 
 __author__ = 'Bruce Leban'
 
@@ -247,6 +248,8 @@ def _ExpandVariable(var, specials, params, name, default=''):
     value = sanitize.SanitizeHtml(str(value))
   elif escaper_name == 'js':
     value = sanitize.SanitizeJs(sanitize.SanitizeHtml(str(value)))
+  elif escaper_name == 'xsrf':
+    value = gruyere._VerifyXsrfToken(None, specials[SPECIAL_COOKIE], str(value))
   elif escaper_name == 'pprint':  # for debugging
     value = '<pre>' + cgi.escape(pprint.pformat(value)) + '</pre>'
 

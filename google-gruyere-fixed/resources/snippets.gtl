@@ -80,7 +80,7 @@
               <script>document.write({{_key}} + 1)</script>&nbsp;&nbsp;
             </td>
             <td valign='top'>
-              <a href='/{{_unique_id}}/deletesnippet?index={{_key}}'>[X]</a>&nbsp;
+              <a href='/{{_unique_id}}/deletesnippet?index={{_key}}&action_token={{_action_token}}'>[X]</a>&nbsp;
             </td>
             <td valign='top'>
               <div id='{{_key}}'>

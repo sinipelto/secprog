@@ -12,7 +12,7 @@
 [[include:menubar.gtl]][[/include:menubar.gtl]]
 <div>
 <h2 class='has-refresh'>Gruyere: Home</h2>
-<div class='refresh'><a class='button' onclick='_refreshHome("{{_unique_id}}")' href='#'>Refresh</a></div>
+<div class='refresh'><a class='button' onclick='_refreshHome("{{_unique_id}}", "{{_action_token}}")' href='#'>Refresh</a></div>
 </div>
 <div class='content'>
 <table width='100%'>

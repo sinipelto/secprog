@@ -32,6 +32,7 @@ import sys
 import threading
 import urllib
 from urlparse import urlparse
+import time
 
 try:
   sys.dont_write_bytecode = True
@@ -49,6 +50,7 @@ SECRET_FILE = '/secret.txt'
 INSTALL_PATH = '.'
 RESOURCE_PATH = 'resources'
 
+SPECIAL_TOKEN = '_action_token'
 SPECIAL_COOKIE = '_cookie'
 SPECIAL_PROFILE = '_profile'
 SPECIAL_DB = '_db'
@@ -120,7 +122,6 @@ def main():
   quit_timer.start()                                             # DO NOT CHANGE
 
   if insecure_mode:                                              # DO NOT CHANGE
-    server_name = os.popen('hostname').read().replace('\n', '')  # DO NOT CHANGE
     server_name = '0.0.0.0'
   else:                                                          # DO NOT CHANGE
     server_name = '127.0.0.1'                                    # DO NOT CHANGE
@@ -226,6 +227,34 @@ def _Open(location, filename, mode='rb'):
     A file object.
   """
   return open(location + filename, mode)
+
+
+# TODO CSRF Token generation
+def _GenerateXsrfToken(self, cookie):
+  """Generates a timestamp and XSRF token for all state changing actions."""
+
+  timestamp = time.time()
+  _Log(str(timestamp))
+
+  token = str(timestamp) + "|" + (str(hash(str(cookie_secret) + str(cookie) + str(timestamp))))
+  _Log("TOKEN: " + token)
+
+  return token
+
+# TODO CSRF Token verification
+def _VerifyXsrfToken(self, cookie, action_token):
+  """Verifies an XSRF token included in a request."""
+
+  # First, make sure that the token isn't more than a day old.
+  (action_time, action_hash) = action_token.split("|", 1)
+
+  now = time.time()
+  if now - 300 > float(action_time):
+    return False
+
+  # Second, regenerate it and check that it matches the user supplied value
+  hash_to_verify = str(hash(str(cookie_secret) + str(cookie) + str(action_time)))
+  return action_hash == hash_to_verify
 
 
 class GruyereRequestHandler(BaseHTTPRequestHandler):
@@ -372,6 +401,12 @@ class GruyereRequestHandler(BaseHTTPRequestHandler):
       specials: Other special values for this request.
       params: Cgi parameters.
     """
+
+    # # TODO Verify CSRF token from the form
+    # if not _VerifyXsrfToken(self, cookie, params.get('token')):
+    #   self._SendError('Invalid CSRF token provided.', cookie, specials, params)
+    #   return
+
     snippet = self._GetParameter(params, 'snippet')
     if not snippet:
       self._SendError('No snippet!', cookie, specials, params)
@@ -389,6 +424,15 @@ class GruyereRequestHandler(BaseHTTPRequestHandler):
       specials: Other special values for this request.
       params: Cgi parameters.
     """
+
+    _Log("SPECIALS: " + str(specials))
+    _Log("PARAMS: " + str(params))
+
+    # TODO Verify CSRF token from the form
+    if not _VerifyXsrfToken(self, cookie, self._GetParameter(params, 'action_token', '0|0')):
+      self._SendError('Invalid CSRF token provided.', cookie, specials, params)
+      return
+
     index = self._GetParameter(params, 'index')
     snippets = self._GetSnippets(cookie, specials)
     try:
@@ -414,14 +458,26 @@ class GruyereRequestHandler(BaseHTTPRequestHandler):
     does not exist.
     """
 
+    # TODO Check illegal chars from user id
+    name = str(self._GetParameter(params, 'uid'))
+    if "|" in name:
+      message = 'Character | not allowed in username.'
+      self._SendError(message, cookie, specials, params)
+      return
+
+    _Log(cookie)
+    _Log(params)
+    _Log(specials)
+
     # build new profile
     profile_data = {}
     uid = self._GetParameter(params, 'uid', cookie[COOKIE_UID])
+    uid = str(uid).replace("|", "") # TODO Sanitize user input
     newpw = self._GetParameter(params, 'pw')
     self._AddParameter('name', params, profile_data, uid)
     self._AddParameter('pw', params, profile_data)
-    self._AddParameter('is_author', params, profile_data)
-    self._AddParameter('is_admin', params, profile_data)
+    # self._AddParameter('is_author', params, profile_data) # TODO Disable
+    # self._AddParameter('is_admin', params, profile_data) # TODO Disable
     self._AddParameter('private_snippet', params, profile_data)
     self._AddParameter('icon', params, profile_data)
     self._AddParameter('web_site', params, profile_data)
@@ -436,7 +492,14 @@ class GruyereRequestHandler(BaseHTTPRequestHandler):
       if uid in database:
         message = 'User already exists.'
       else:
+        # Ensure default perms in place
+        default_perms = {'is_author': ['True'], 'is_admin': ['False']}  # TODO default perms for new accounts
+        self._AddParameter('is_author', default_perms, profile_data) # TODO set default perms
+        self._AddParameter('is_admin', default_perms, profile_data)
+        _Log("DATA: " + str(profile_data))
         profile_data['pw'] = newpw
+        profile_data['is_author'] = True
+        profile_data['is_admin'] = False
         database[uid] = profile_data
         (cookie, new_cookie_text) = self._CreateCookie('GRUYERE', uid)
         message = 'Account created.'  # error message can also indicates success
@@ -448,6 +511,11 @@ class GruyereRequestHandler(BaseHTTPRequestHandler):
         # must be admin or supply old pw to change password
         message = 'Incorrect password.'
       else:
+        # Set perms from cookie. We do not want to demote anyone who is an admin or promote anyone not an author.
+        perms = {'is_author': [cookie[COOKIE_AUTHOR]], 'is_admin': [cookie[COOKIE_ADMIN]]} # TODO Set correct perms
+        self._AddParameter('is_author', perms, profile_data)
+        self._AddParameter('is_admin', perms, profile_data)
+        _Log("DATA: " + str(profile_data))
         if newpw:
           profile_data['pw'] = newpw
         database[uid].update(profile_data)
@@ -492,6 +560,19 @@ class GruyereRequestHandler(BaseHTTPRequestHandler):
       params: Cgi parameters.
       new_cookie_text: New cookie to set.
     """
+
+    _Log("SEND_TEMPLATE_RESPONSE")
+    _Log("FILENAME: " + str(filename))
+    _Log("SPECIALS: " + str(specials))
+    _Log("PARAMS: " + str(params))
+
+    # TODO Check XSRF for feed.gtl
+    if "feed.gtl" in filename and self._GetParameter(params, 'uid', '') == "":
+      cookie = specials[SPECIAL_COOKIE]
+      if not _VerifyXsrfToken(self, cookie, self._GetParameter(params,'action_token', '0|0')):
+        self._SendError("Invalid XSRF token.", cookie, specials, params)
+        return
+
     f = None
     try:
       f = _Open(RESOURCE_PATH, filename)
@@ -573,11 +654,14 @@ class GruyereRequestHandler(BaseHTTPRequestHandler):
       return (self.NULL_COOKIE, cookie_name + '=; path=/')
     database = self._GetDatabase()
     profile = database[uid]
+    _Log("PROFILE: " + str(profile))
     if profile.get('is_author', False):
+      _Log("IS_AUTHOR TRUE")
       is_author = 'author'
     else:
       is_author = ''
     if profile.get('is_admin', False):
+      _Log("IS_ADMIN TRUE")
       is_admin = 'admin'
     else:
       is_admin = ''
@@ -832,6 +916,7 @@ class GruyereRequestHandler(BaseHTTPRequestHandler):
     specials = {}
     cookie = self._GetCookie('GRUYERE')
     database = self._GetDatabase()
+    specials[SPECIAL_TOKEN] = _GenerateXsrfToken(self, cookie) # TODO Generate token XSRF for every HTTP request
     specials[SPECIAL_COOKIE] = cookie
     specials[SPECIAL_DB] = database
     specials[SPECIAL_PROFILE] = database.get(cookie.get(COOKIE_UID))

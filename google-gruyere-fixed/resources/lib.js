@@ -48,8 +48,9 @@ function _finishRefreshHome(response) {
   }
 };
 
-function _refreshHome(uniqueId) {
-  _refresh("/" + uniqueId + "/feed.gtl", _finishRefreshHome);
+function _refreshHome(uniqueId, actionToken) {
+    console.log(actionToken);
+  _refresh("/" + uniqueId + "/feed.gtl" + "?action_token=" + actionToken, _finishRefreshHome);
 };
 
 /**
