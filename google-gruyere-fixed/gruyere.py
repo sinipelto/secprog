@@ -461,7 +461,23 @@ class GruyereRequestHandler(BaseHTTPRequestHandler):
     # TODO Check illegal chars from user id
     name = str(self._GetParameter(params, 'uid'))
     if "|" in name:
-      message = 'Character | not allowed in username.'
+      message = 'Character "|" not allowed in username.'
+      self._SendError(message, cookie, specials, params)
+      return
+    elif "../" in name:
+      message = 'Token "../" not allowed in username.'
+      self._SendError(message, cookie, specials, params)
+      return
+    elif ".." in name:
+      message = 'Token "../" not allowed in username.'
+      self._SendError(message, cookie, specials, params)
+      return
+    elif "/" in name:
+      message = 'Character "/" not allowed in username.'
+      self._SendError(message, cookie, specials, params)
+      return
+    elif "\\" in name:
+      message = 'Character "\\" not allowed in username.'
       self._SendError(message, cookie, specials, params)
       return
 
@@ -755,18 +771,35 @@ class GruyereRequestHandler(BaseHTTPRequestHandler):
     (filename, file_data) = self._ExtractFileFromRequest()
     directory = self._MakeUserDirectory(cookie[COOKIE_UID])
 
+    valid = True
+    token = None
+
+    if "../" in filename:
+      token = "../"
+      valid = False
+    elif "/" in filename:
+      token = "/"
+      valid = False
+    elif "\\" in filename:
+      token = "\\"
+      valid = False
+
     message = None
     url = None
-    try:
-      f = _Open(directory, filename, 'wb')
-      f.write(file_data)
-      f.close()
-      (host, port) = http_server.server_address
-      url = 'http://%s:%d/%s/%s/%s' % (
-          host, port, specials[SPECIAL_UNIQUE_ID], cookie[COOKIE_UID], filename)
-    except IOError, ex:
-      message = 'Couldn\'t write file %s: %s' % (filename, ex.message)
-      _Log(message)
+
+    if valid:
+      try:
+        f = _Open(directory, filename, 'wb')
+        f.write(file_data)
+        f.close()
+        (host, port) = http_server.server_address
+        url = 'http://%s:%d/%s/%s/%s' % (
+            host, port, specials[SPECIAL_UNIQUE_ID], cookie[COOKIE_UID], filename)
+      except IOError, ex:
+        message = 'Couldn\'t write file %s: %s' % (filename, ex.message)
+        _Log(message)
+    else:
+      message = "File was not Uploaded: file name contains invalid token: [ " + token + " ]"
 
     specials['_message'] = message
     self._SendTemplateResponse(
@@ -908,6 +941,10 @@ class GruyereRequestHandler(BaseHTTPRequestHandler):
     """
 
     path = urllib.unquote(path)
+
+    _Log("RAW REQ PATH: " + path)
+    path = path.replace("../", "")
+    _Log("REQ PATH: " + path)
 
     if not path:
       self._SendRedirect('/', server_unique_id)

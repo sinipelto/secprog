@@ -27,6 +27,7 @@ Vagrant.configure("2") do |config|
   config.vm.network "forwarded_port", guest: 443, host: 8443
   config.vm.network "forwarded_port", guest: 8008, host: 8008
   config.vm.network "forwarded_port", guest: 8009, host: 8009
+  config.vm.network "forwarded_port", guest: 9000, host: 9000
 
   # Create a forwarded port mapping which allows access to a specific port
   # within the machine from a port on the host machine and only allow access
@@ -53,13 +54,15 @@ Vagrant.configure("2") do |config|
   # backing providers for Vagrant. These expose provider-specific options.
   # Example for VirtualBox:
   #
-  # config.vm.provider "virtualbox" do |vb|
-  #   # Display the VirtualBox GUI when booting the machine
-  #   vb.gui = true
-  #
-  #   # Customize the amount of memory on the VM:
-  #   vb.memory = "1024"
-  # end
+  config.vm.provider "virtualbox" do |vb|
+    # Display the VirtualBox GUI when booting the machine
+    vb.gui = false
+
+    vb.cpus = 3
+
+    # Customize the amount of memory on the VM:
+    vb.memory = "4096"
+  end
   #
   # View the documentation for the provider you are using for more
   # information on available options.
@@ -70,14 +73,14 @@ Vagrant.configure("2") do |config|
   config.vm.provision "shell", inline: <<-SHELL
     apt-get update
     apt-get install -y unzip python2.7 python-pip
-	rm -rf /server_orig/*
-	unzip /vagrant/prov/gruyere-code.zip -d /server_orig/
-	chown -R vagrant:vagrant /server_fixed
-	chown -R vagrant:vagrant /server_orig
+    rm -rf /server_orig/*
+    unzip /vagrant/prov/gruyere-code.zip -d /server_orig/
+    chown -R vagrant:vagrant /server_fixed
+    chown -R vagrant:vagrant /server_orig
   SHELL
 
-  # config.vm.provision "shell",
-	# path: "prov/fork.sh",
-	# privileged: false,
-	# run: "always"
+  config.vm.provision "shell",
+    path: "prov/fork.sh",
+    privileged: false,
+    run: "always"
 end
