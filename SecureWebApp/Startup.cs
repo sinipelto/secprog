@@ -1,17 +1,14 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.UI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SecureWebApp.Data;
+using SecureWebApp.Interfaces;
+using SecureWebApp.Services;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace SecureWebApp
 {
@@ -23,7 +20,15 @@ namespace SecureWebApp
         }
 
         public IConfiguration Configuration { get; }
-
+        
+        /// <summary>
+        /// Service resolver for different implementations of IBreachService
+        /// Returns concrete service based on given key stored in the service class
+        /// </summary>
+        /// <param name="key">The name of the service class to be used.</param>
+        /// <returns></returns>
+        public delegate IBreachCheckService BreachServiceResolver(string key);
+        
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
@@ -34,6 +39,29 @@ namespace SecureWebApp
 
             services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
                 .AddEntityFrameworkStores<ApplicationDbContext>();
+
+            services.AddHttpClient(PwnedApiCheckService.Name, c =>
+            {
+                c.BaseAddress = new Uri("https://api.pwnedpasswords.com");
+                c.DefaultRequestVersion = new Version(2, 0);
+                c.Timeout = TimeSpan.FromSeconds(5);
+                c.DefaultRequestHeaders.Add("Accept", "text/plain");
+                c.DefaultRequestHeaders.Add("UserAgent", Configuration["HttpUserAgent"]);
+            });
+
+            services.AddTransient<PwnedApiCheckService>();
+            services.AddTransient<PasswdsApiCheckService>();
+
+            services.AddTransient<BreachServiceResolver>(provider => key =>
+            {
+                return key switch
+                {
+                    PwnedApiCheckService.Name => provider.GetService<PwnedApiCheckService>(),
+                    PasswdsApiCheckService.Name => provider.GetService<PasswdsApiCheckService>(),
+                    _ => throw new ArgumentException("Unknown service name provided.", nameof(key))
+                };
+            });
+            
             services.AddControllersWithViews();
         }
 
