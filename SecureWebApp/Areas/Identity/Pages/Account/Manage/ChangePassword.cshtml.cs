@@ -7,6 +7,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
+using SecureWebApp.Interfaces;
+using SecureWebApp.Services;
+
 namespace SecureWebApp.Areas.Identity.Pages.Account.Manage
 {
     public class ChangePasswordModel : PageModel
@@ -14,15 +17,22 @@ namespace SecureWebApp.Areas.Identity.Pages.Account.Manage
         private readonly UserManager<IdentityUser> _userManager;
         private readonly SignInManager<IdentityUser> _signInManager;
         private readonly ILogger<ChangePasswordModel> _logger;
+        private readonly IBreachCheckService _pwnedApiBreachCheckService;
 
         public ChangePasswordModel(
             UserManager<IdentityUser> userManager,
             SignInManager<IdentityUser> signInManager,
-            ILogger<ChangePasswordModel> logger)
+            ILogger<ChangePasswordModel> logger,
+            Startup.BreachServiceResolver serviceResolver
+            )
         {
-            _userManager = userManager;
-            _signInManager = signInManager;
-            _logger = logger;
+            if (serviceResolver == null) throw new ArgumentNullException(nameof(serviceResolver));
+
+            _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+            _signInManager = signInManager ?? throw new ArgumentNullException(nameof(signInManager));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+            _pwnedApiBreachCheckService = serviceResolver(PwnedApiCheckService.Name);
         }
 
         [BindProperty]
@@ -39,7 +49,7 @@ namespace SecureWebApp.Areas.Identity.Pages.Account.Manage
             public string OldPassword { get; set; }
 
             [Required]
-            [StringLength(100, ErrorMessage = "The {0} must be at least {2} and at max {1} characters long.", MinimumLength = 6)]
+            [StringLength(100, ErrorMessage = "The {0} must be at least {2} and at max {1} characters long.", MinimumLength = 16)]
             [DataType(DataType.Password)]
             [Display(Name = "New password")]
             public string NewPassword { get; set; }
@@ -78,6 +88,24 @@ namespace SecureWebApp.Areas.Identity.Pages.Account.Manage
             if (user == null)
             {
                 return NotFound($"Unable to load user with ID '{_userManager.GetUserId(User)}'.");
+            }
+
+            bool breached = false;
+
+            try
+            {
+                breached = await _pwnedApiBreachCheckService.CheckPassword(Input.NewPassword);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
+
+            if (breached)
+            {
+                ModelState.AddModelError("PasswordBreachError", "Error: The given password has been breached and is not safe for use. Please choose another password.");
+                return Page();
             }
 
             var changePasswordResult = await _userManager.ChangePasswordAsync(user, Input.OldPassword, Input.NewPassword);
