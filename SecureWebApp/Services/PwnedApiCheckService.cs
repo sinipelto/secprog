@@ -1,11 +1,11 @@
-﻿using System;
+﻿using SecureWebApp.Interfaces;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
-using SecureWebApp.Interfaces;
 
 namespace SecureWebApp.Services
 {
@@ -26,7 +26,7 @@ namespace SecureWebApp.Services
 
             var hash = hasher.ComputeHash(Encoding.UTF8.GetBytes(password));
             var hashStr = hash.Aggregate(string.Empty, (current, b) => current + b.ToString("X2"));
-            var prefix = hashStr.Substring(0, 5);
+            var prefix = hashStr[..5];
 
             var request = new HttpRequestMessage(HttpMethod.Get, "range/" + prefix);
 
@@ -42,13 +42,13 @@ namespace SecureWebApp.Services
 
         public bool CheckHash<T>(T hash) where T : HashAlgorithm
         {
-            throw new System.NotImplementedException();
+            throw new NotImplementedException();
         }
 
         private static Dictionary<string, string> ProcessResponse(string response)
         {
             return response
-                .Split(new char[] {' ', '\n', '\t'},
+                .Split(new[] { ' ', '\n', '\t' },
                     StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
                 .Select(i =>
                 {

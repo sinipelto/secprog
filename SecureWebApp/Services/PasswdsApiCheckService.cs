@@ -1,7 +1,8 @@
-﻿using System.Net.Http;
+﻿using SecureWebApp.Interfaces;
+using System;
+using System.Net.Http;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
-using SecureWebApp.Interfaces;
 
 namespace SecureWebApp.Services
 {
@@ -9,18 +10,26 @@ namespace SecureWebApp.Services
     {
         public const string Name = "PasswdsApiService";
 
-        private const string Path = "/range";
-
         private readonly IHttpClientFactory _httpClientFactory;
-        
-        public async Task<bool> CheckPassword(string password)
+
+        public PasswdsApiCheckService(IHttpClientFactory httpClientFactory)
         {
-            throw new System.NotImplementedException();
+            _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
+        }
+
+        public Task<bool> CheckPassword(string password)
+        {
+            if (string.IsNullOrWhiteSpace(password))
+            {
+                throw new ArgumentException($"'{nameof(password)}' cannot be null or whitespace.", nameof(password));
+            }
+
+            throw new NotImplementedException();
         }
 
         public bool CheckHash<T>(T hash) where T : HashAlgorithm
         {
-            throw new System.NotImplementedException();
+            throw new NotImplementedException();
         }
     }
 }
