@@ -35,9 +35,26 @@ namespace SecureWebApp
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(
                     Configuration.GetConnectionString("DefaultConnection")));
+
             services.AddDatabaseDeveloperPageExceptionFilter();
 
-            services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
+            services.AddDefaultIdentity<IdentityUser>(options =>
+                {
+                    const int pwLen = 16;
+
+                    options.SignIn.RequireConfirmedAccount = true;
+                    
+                    options.Password.RequireDigit = true;
+                    options.Password.RequireLowercase = true;
+                    options.Password.RequireUppercase = true;
+                    options.Password.RequireNonAlphanumeric = true;
+                    options.Password.RequiredLength = pwLen;
+                    options.Password.RequiredUniqueChars = pwLen / 3; // min. 33% uniqueness
+
+                    options.Lockout.AllowedForNewUsers = true;
+                    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromHours(24);
+                    options.Lockout.MaxFailedAccessAttempts = 5;
+                })
                 .AddEntityFrameworkStores<ApplicationDbContext>();
 
             services.AddHttpClient(PwnedApiCheckService.Name, c =>
