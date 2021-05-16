@@ -20,7 +20,7 @@ namespace SecureWebApp.Services
             _httpClientFactory = httpClientFactory;
         }
 
-        public async Task<bool> CheckPassword(string password)
+        public async Task<bool> CheckPasswordAsync(string password)
         {
             var hasher = SHA1.Create();
 
@@ -40,7 +40,7 @@ namespace SecureWebApp.Services
             return hashList.Contains(hashStr);
         }
 
-        public bool CheckHash<T>(T hash) where T : HashAlgorithm
+        public Task<bool> CheckHashAsync<T>(T hash) where T : HashAlgorithm
         {
             throw new NotImplementedException();
         }

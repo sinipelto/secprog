@@ -17,7 +17,7 @@ namespace SecureWebApp.Services
             _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
         }
 
-        public Task<bool> CheckPassword(string password)
+        public Task<bool> CheckPasswordAsync(string password)
         {
             if (string.IsNullOrWhiteSpace(password))
             {
@@ -27,7 +27,7 @@ namespace SecureWebApp.Services
             throw new NotImplementedException();
         }
 
-        public bool CheckHash<T>(T hash) where T : HashAlgorithm
+        public Task<bool> CheckHashAsync<T>(T hash) where T : HashAlgorithm
         {
             throw new NotImplementedException();
         }

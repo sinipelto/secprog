@@ -11,7 +11,7 @@ namespace SecureWebApp.Interfaces
         /// </summary>
         /// <param name="password">The user provided password to check for breaches</param>
         /// <returns></returns>
-        Task<bool> CheckPassword(string password);
+        Task<bool> CheckPasswordAsync(string password);
 
         /// <summary>
         /// Checks breaches for a password hash.
@@ -20,6 +20,6 @@ namespace SecureWebApp.Interfaces
         /// <typeparam name="T">Type of the hash algorithm used for the password</typeparam>
         /// <param name="hash">The hash of the password to check</param>
         /// <returns></returns>
-        bool CheckHash<T>(T hash) where T : HashAlgorithm;
+        Task<bool> CheckHashAsync<T>(T hash) where T : HashAlgorithm;
     }
 }

@@ -92,8 +92,8 @@ namespace SecureWebApp.Areas.Identity.Pages.Account
             bool breached;
             try
             {
-                breached = await _pwnedCheckService.CheckPassword(Input.Password);
-                //breached = await _pwdsApiCheckService.CheckPassword(Input.Password);
+                breached = await _pwnedCheckService.CheckPasswordAsync(Input.Password);
+                //breached = await _pwdsApiCheckService.CheckPasswordAsync(Input.Password);
             }
             catch (Exception e)
             {

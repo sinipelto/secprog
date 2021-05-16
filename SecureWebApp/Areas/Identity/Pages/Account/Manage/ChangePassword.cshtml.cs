@@ -94,7 +94,7 @@ namespace SecureWebApp.Areas.Identity.Pages.Account.Manage
 
             try
             {
-                breached = await _pwnedApiBreachCheckService.CheckPassword(Input.NewPassword);
+                breached = await _pwnedApiBreachCheckService.CheckPasswordAsync(Input.NewPassword);
             }
             catch (Exception e)
             {

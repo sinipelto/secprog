@@ -46,7 +46,7 @@ namespace SecureWebApp.Tests
 
             foreach (var pw in pws)
             {
-                var res = await _pwnedService.CheckPassword(pw);
+                var res = await _pwnedService.CheckPasswordAsync(pw);
                 Assert.IsTrue(res);
             }
         }
@@ -59,7 +59,7 @@ namespace SecureWebApp.Tests
             crypto.GetBytes(bytes);
             var pw = string.Concat(Encoding.UTF8.GetString(bytes).Where(i => char.IsLetterOrDigit(i) || char.IsPunctuation(i)));
 
-            var res = await _pwnedService.CheckPassword(pw);
+            var res = await _pwnedService.CheckPasswordAsync(pw);
             Assert.IsFalse(res);
         }
     }
