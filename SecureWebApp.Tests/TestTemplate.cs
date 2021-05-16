@@ -2,7 +2,7 @@ using NUnit.Framework;
 
 namespace SecureWebApp.Tests
 {
-    public class Template
+    public class TestTemplate
     {
         [SetUp]
         public void Setup()
@@ -10,7 +10,7 @@ namespace SecureWebApp.Tests
         }
 
         [Test]
-        public void Test1()
+        public void Test()
         {
             Assert.Pass();
         }
