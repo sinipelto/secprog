@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using SecureWebApp.Data;
 using SecureWebApp.Interfaces;
@@ -38,12 +40,16 @@ namespace SecureWebApp
 
             services.AddDatabaseDeveloperPageExceptionFilter();
 
+            services.AddTransient<IMailService, EmailSenderService>();
+
             services.AddDefaultIdentity<IdentityUser>(options =>
                 {
                     const int pwLen = 16;
 
                     options.SignIn.RequireConfirmedAccount = true;
-                    
+                    options.SignIn.RequireConfirmedEmail = true;
+                    options.SignIn.RequireConfirmedPhoneNumber = false;
+
                     options.Password.RequireDigit = true;
                     options.Password.RequireLowercase = true;
                     options.Password.RequireUppercase = true;
@@ -54,6 +60,8 @@ namespace SecureWebApp
                     options.Lockout.AllowedForNewUsers = true;
                     options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromHours(24);
                     options.Lockout.MaxFailedAccessAttempts = 5;
+
+                    options.Tokens.ProviderMap.Add("AccountUnlockTokenProvder", new TokenProviderDescriptor(typeof(EmailTokenProvider<IdentityUser>)));
                 })
                 .AddEntityFrameworkStores<ApplicationDbContext>();
 
@@ -65,6 +73,9 @@ namespace SecureWebApp
                 c.DefaultRequestHeaders.Add("Accept", "text/plain");
                 c.DefaultRequestHeaders.Add("UserAgent", Configuration["HttpUserAgent"]);
             });
+
+            services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+            services.AddTransient<IIpAddressService, IpAddressService>();
 
             services.AddTransient<PwnedApiCheckService>();
             services.AddTransient<PasswdsApiCheckService>();

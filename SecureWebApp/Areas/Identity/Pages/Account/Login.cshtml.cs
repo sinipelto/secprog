@@ -3,10 +3,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Logging;
+using SecureWebApp.Interfaces;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace SecureWebApp.Areas.Identity.Pages.Account
@@ -16,13 +19,16 @@ namespace SecureWebApp.Areas.Identity.Pages.Account
     {
         private readonly UserManager<IdentityUser> _userManager;
         private readonly SignInManager<IdentityUser> _signInManager;
+        private readonly IMailService _emailSender;
         private readonly ILogger<LoginModel> _logger;
 
         public LoginModel(SignInManager<IdentityUser> signInManager,
             ILogger<LoginModel> logger,
-            UserManager<IdentityUser> userManager)
+            UserManager<IdentityUser> userManager,
+            IMailService emailSender)
         {
             _userManager = userManager;
+            _emailSender = emailSender;
             _signInManager = signInManager;
             _logger = logger;
         }
@@ -91,6 +97,12 @@ namespace SecureWebApp.Areas.Identity.Pages.Account
             {
                 // Enhanced logging to collect locked out username in the logs
                 _logger.LogWarning($"User '{Input.Email}' account locked out.");
+
+                // Collect user object and send account lockout notice and an unlock token inside a link to account unlock page
+                var user = await _userManager.FindByEmailAsync(Input.Email);
+                var token = await _userManager.GenerateUserTokenAsync(user, "AccountUnlockTokenProvder", "AccountUnlock");
+                token = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+                _ = _emailSender.SendAccountUnlockEmailAsync(user, token);
                 return RedirectToPage("./Lockout");
             }
 
