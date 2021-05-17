@@ -61,7 +61,7 @@ namespace SecureWebApp
                     options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromHours(24);
                     options.Lockout.MaxFailedAccessAttempts = 5;
 
-                    options.Tokens.ProviderMap.Add("AccountUnlockTokenProvder", new TokenProviderDescriptor(typeof(EmailTokenProvider<IdentityUser>)));
+                    options.Tokens.ProviderMap.Add("AccountUnlockTokenProvder", new TokenProviderDescriptor(typeof(DataProtectorTokenProvider<IdentityUser>)));
                 })
                 .AddEntityFrameworkStores<ApplicationDbContext>();
 
