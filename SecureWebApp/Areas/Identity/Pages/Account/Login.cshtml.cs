@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using SecureWebApp.Interfaces;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -102,7 +103,8 @@ namespace SecureWebApp.Areas.Identity.Pages.Account
                 var user = await _userManager.FindByEmailAsync(Input.Email);
                 var token = await _userManager.GenerateUserTokenAsync(user, "AccountUnlockTokenProvder", "AccountUnlock");
                 token = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
-                _ = _emailSender.SendAccountUnlockEmailAsync(user, token);
+                var mail = await _emailSender.SendAccountUnlockEmailAsync(user, token);
+                TempData.Add("UnlockEmailMsg", JsonConvert.SerializeObject(mail));
                 return RedirectToPage("./Lockout");
             }
 

@@ -20,8 +20,6 @@ namespace SecureWebApp.Services
         {
             string ip = null;
 
-            // todo support new "Forwarded" header (2014) https://en.wikipedia.org/wiki/X-Forwarded-For
-
             // X-Forwarded-For (csv list):  Using the First entry in the list seems to work
             // for 99% of cases however it has been suggested that a better (although tedious)
             // approach might be to read each IP from right to left and use the first public IP.

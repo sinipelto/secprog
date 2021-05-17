@@ -1,12 +1,10 @@
 ﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SecureWebApp.Interfaces;
 using SecureWebApp.Models;
 using System;
-using System.Security.Policy;
-using System.Text.Encodings.Web;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
 
 namespace SecureWebApp.Services
 {
@@ -18,7 +16,7 @@ namespace SecureWebApp.Services
 
         public EmailSenderService(
             ILogger<EmailSenderService> logger,
-            IIpAddressService ipAddressService, 
+            IIpAddressService ipAddressService,
             IConfiguration configuration)
         {
             _logger = logger;
@@ -32,16 +30,23 @@ namespace SecureWebApp.Services
             _logger.LogDebug($"CREATED EMAIL:\nTO: {message.To}\nSUBJECT: {message.Subject}\nMESSAGE: {message.HtmlMessage}");
         }
 
-        public async Task SendAccountUnlockEmailAsync(IdentityUser user, string recoveryToken)
+        public async Task<EmailMessage> SendAccountUnlockEmailAsync(IdentityUser user, string recoveryToken)
         {
-            await SendEmailAsync(new EmailMessage
+            await Task.Yield();
+
+            var message = new EmailMessage
             {
                 To = user.Email,
                 Subject = "SecureWebApp: User account locked",
                 HtmlMessage = GetTemplate(Templates.AccountUnlock, user.Email, _ipAddressService.GetRequestIp(), user.Id, recoveryToken)
-            });
-        }
+            };
 
+            // Send the mail asyncronously in the background
+            _ = SendEmailAsync(message);
+
+            // Immediately return the generated message
+            return message;
+        }
 
         public enum Templates { AccountUnlock }
 

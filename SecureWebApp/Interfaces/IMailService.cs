@@ -8,6 +8,6 @@ namespace SecureWebApp.Interfaces
     {
         Task SendEmailAsync(EmailMessage message);
 
-        Task SendAccountUnlockEmailAsync(IdentityUser user, string recoveryToken);
+        Task<EmailMessage> SendAccountUnlockEmailAsync(IdentityUser user, string recoveryToken);
     }
 }

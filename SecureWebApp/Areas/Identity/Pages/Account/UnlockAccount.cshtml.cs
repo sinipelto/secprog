@@ -39,9 +39,17 @@ namespace SecureWebApp.Areas.Identity.Pages.Account
                 return NotFound($"Unable to load user with ID '{userId}'.");
             }
 
-            code = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(code));
+            var result = false;
 
-            var result = await _userManager.VerifyUserTokenAsync(user, "AccountUnlockTokenProvder", "AccountUnlock", code);
+            try
+            {
+                code = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(code));
+                result = await _userManager.VerifyUserTokenAsync(user, "AccountUnlockTokenProvder", "AccountUnlock", code);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Failed to parse input code.");
+            }
 
             StatusMessage = result ? "Account unlocked successfully." : "Error unlocking account: Unlock token verification failed.";
 
@@ -52,7 +60,7 @@ namespace SecureWebApp.Areas.Identity.Pages.Account
             }
 
             // Set lockout end date to epoch (0) and unlock the account
-            var unlockDate = await _userManager.SetLockoutEndDateAsync(user, DateTimeOffset.UnixEpoch);
+            var unlockDate = await _userManager.SetLockoutEndDateAsync(user, DateTimeOffset.Now);
 
             if (unlockDate.Succeeded) return Page();
 
