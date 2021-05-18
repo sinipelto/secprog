@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -9,8 +10,10 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using SecureWebApp.Data;
 using SecureWebApp.Interfaces;
+using SecureWebApp.Security;
 using SecureWebApp.Services;
 using System;
+using System.IO;
 
 namespace SecureWebApp
 {
@@ -22,7 +25,7 @@ namespace SecureWebApp
         }
 
         public IConfiguration Configuration { get; }
-        
+
         /// <summary>
         /// Service resolver for different implementations of IBreachService
         /// Returns concrete service based on given key stored in the service class
@@ -30,7 +33,7 @@ namespace SecureWebApp
         /// <param name="key">The name of the service class to be used.</param>
         /// <returns></returns>
         public delegate IBreachCheckService BreachServiceResolver(string key);
-        
+
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
@@ -41,29 +44,6 @@ namespace SecureWebApp
             services.AddDatabaseDeveloperPageExceptionFilter();
 
             services.AddTransient<IMailService, EmailSenderService>();
-
-            services.AddDefaultIdentity<IdentityUser>(options =>
-                {
-                    const int pwLen = 16;
-
-                    options.SignIn.RequireConfirmedAccount = true;
-                    options.SignIn.RequireConfirmedEmail = true;
-                    options.SignIn.RequireConfirmedPhoneNumber = false;
-
-                    options.Password.RequireDigit = true;
-                    options.Password.RequireLowercase = true;
-                    options.Password.RequireUppercase = true;
-                    options.Password.RequireNonAlphanumeric = true;
-                    options.Password.RequiredLength = pwLen;
-                    options.Password.RequiredUniqueChars = pwLen / 3; // min. 33% uniqueness
-
-                    options.Lockout.AllowedForNewUsers = true;
-                    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromHours(24);
-                    options.Lockout.MaxFailedAccessAttempts = 5;
-
-                    options.Tokens.ProviderMap.Add("AccountUnlockTokenProvder", new TokenProviderDescriptor(typeof(DataProtectorTokenProvider<IdentityUser>)));
-                })
-                .AddEntityFrameworkStores<ApplicationDbContext>();
 
             services.AddHttpClient(PwnedApiCheckService.Name, c =>
             {
@@ -89,7 +69,40 @@ namespace SecureWebApp
                     _ => throw new ArgumentException("Unknown service name provided.", nameof(key))
                 };
             });
-            
+
+            services.AddDataProtection()
+                .SetDefaultKeyLifetime(TimeSpan.FromDays(30))
+                .PersistKeysToFileSystem(new DirectoryInfo(Directory.GetCurrentDirectory()));
+
+            services.AddIdentity<IdentityUser, IdentityRole>(options =>
+                {
+                    const int pwLen = 16;
+
+                    options.Stores.ProtectPersonalData = true;
+                    options.Stores.MaxLengthForKeys = 512;
+
+                    options.SignIn.RequireConfirmedAccount = true;
+                    options.SignIn.RequireConfirmedEmail = true;
+                    options.SignIn.RequireConfirmedPhoneNumber = false;
+
+                    options.Password.RequireDigit = true;
+                    options.Password.RequireLowercase = true;
+                    options.Password.RequireUppercase = true;
+                    options.Password.RequireNonAlphanumeric = true;
+                    options.Password.RequiredLength = pwLen;
+                    options.Password.RequiredUniqueChars = pwLen / 3; // min. 33% uniqueness
+
+                    options.Lockout.AllowedForNewUsers = true;
+                    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromHours(24);
+                    options.Lockout.MaxFailedAccessAttempts = 5;
+
+                    options.Tokens.ProviderMap.Add("AccountUnlockTokenProvder", new TokenProviderDescriptor(typeof(DataProtectorTokenProvider<IdentityUser>)));
+                })
+                .AddDefaultUI()
+                .AddDefaultTokenProviders()
+                .AddPersonalDataProtection<LookupProtector, KeyRing>()
+                .AddEntityFrameworkStores<ApplicationDbContext>();
+
             services.AddControllersWithViews();
         }
 
