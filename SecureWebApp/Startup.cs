@@ -30,8 +30,8 @@ namespace SecureWebApp
         /// Service resolver for different implementations of IBreachService
         /// Returns concrete service based on given key stored in the service class
         /// </summary>
-        /// <param name="key">The name of the service class to be used.</param>
-        /// <returns></returns>
+        /// <param name="key">The name of the service class to be used. Found in class property Name.</param>
+        /// <returns>The correct breach service implementation.</returns>
         public delegate IBreachCheckService BreachServiceResolver(string key);
 
         // This method gets called by the runtime. Use this method to add services to the container.
@@ -45,6 +45,7 @@ namespace SecureWebApp
 
             services.AddTransient<IMailService, EmailSenderService>();
 
+            // Add HTTP client (through a client factory as a scoped object) for Pwned API
             services.AddHttpClient(PwnedApiCheckService.Name, c =>
             {
                 c.BaseAddress = new Uri("https://api.pwnedpasswords.com");
@@ -54,12 +55,18 @@ namespace SecureWebApp
                 c.DefaultRequestHeaders.Add("UserAgent", Configuration["HttpUserAgent"]);
             });
 
+            // If other services were used for password breach checking
+            // add the API client configurations here
+            // The actual service implementations must be implemented case by case
+
             services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
             services.AddTransient<IIpAddressService, IpAddressService>();
 
             services.AddTransient<PwnedApiCheckService>();
             services.AddTransient<PasswdsApiCheckService>();
 
+            // Add service resolver delegate for handling multiple breach services
+            // Allows to delegate one or several services of the same interface type
             services.AddTransient<BreachServiceResolver>(provider => key =>
             {
                 return key switch
@@ -70,10 +77,13 @@ namespace SecureWebApp
                 };
             });
 
+            // Add data protection layer -> key management
             services.AddDataProtection()
                 .SetDefaultKeyLifetime(TimeSpan.FromDays(30))
-                .PersistKeysToFileSystem(new DirectoryInfo(Directory.GetCurrentDirectory()));
+                .PersistKeysToFileSystem(new DirectoryInfo(Directory.GetCurrentDirectory())); // Store keys in project directory (or in a specific path)  => better control in key management
 
+            // Add identity layer with custom configuration
+            // Configuration for password management, user lockout management
             services.AddIdentity<IdentityUser, IdentityRole>(options =>
                 {
                     const int pwLen = 16;
@@ -100,8 +110,8 @@ namespace SecureWebApp
                 })
                 .AddDefaultUI()
                 .AddDefaultTokenProviders()
-                .AddPersonalDataProtection<LookupProtector, KeyRing>()
-                .AddEntityFrameworkStores<ApplicationDbContext>();
+                .AddPersonalDataProtection<LookupProtector, KeyRing>() // Add implementation of data protector and keyring handler
+                .AddEntityFrameworkStores<ApplicationDbContext>(); // Use App db context
 
             services.AddControllersWithViews();
         }
